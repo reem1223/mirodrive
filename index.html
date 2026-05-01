@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מירו לימוד נהיגה - ניהול שיעורים</title>
+    
+    <!-- Scripts for React, Babel and Tailwind -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        // Enable class-based dark mode in Tailwind
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap');
+        body {
+            font-family: 'Assistant', sans-serif;
+            background-color: #f8fafc;
+            transition: background-color 0.3s ease;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useCallback, Fragment } = React;
+
+        // --- CONFIGURATION ---
+        // IMPORTANT: Replace this URL with your actual deployed Google Apps Script URL
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzqm1e_GEqZ4qKuSqYPd7j2PnjkFk5LT-zO44zsoSP5xmacG04QxBQRDzj0C72BSZss/exec";
+
+        // --- SVGs for Icons ---
+        const Icon = ({ name, size = 18, className = "" }) => {
+            const icons = {
+                calendar: <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/>,
+                clock: <Fragment><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></Fragment>,
+                user: <Fragment><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></Fragment>,
+                bell: <Fragment><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></Fragment>,
+                check: <polyline points="20 6 9 17 4 12"/>,
+                x: <Fragment><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Fragment>,
+                logout: <Fragment><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></Fragment>,
+                plus: <Fragment><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Fragment>,
+                trash: <Fragment><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></Fragment>,
+                users: <Fragment><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Fragment>,
+                refresh: <Fragment><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></Fragment>,
+                alert: <Fragment><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></Fragment>,
+                link: <Fragment><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 8"/><line x1="10" y1="14" x2="21" y2="3"/></Fragment>,
+                moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>,
+                sun: <Fragment><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></Fragment>
+            };
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    {icons[name] || icons.calendar}
+                </svg>
+            );
+        };
+
+        // --- Helper Functions ---
+        const normalizeDate = (d) => {
+            if (!d || String(d).trim() === "") return null;
+            let dateObj = new Date(d);
+            if (isNaN(dateObj.getTime())) {
+                const parts = String(d).split(/[\/\-\.]/);
+                if (parts.length === 3) {
+                    if (parts[0].length <= 2 && parts[2].length === 4) dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+                    else if (parts[0].length === 4) dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                }
+            }
+            if (isNaN(dateObj.getTime())) return null;
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const normalizeTime = (t) => {
+            if (!t || String(t).trim() === "") return "";
+            const s = String(t).trim();
+            if (s.includes('T') || (s.includes('-') && s.length > 10)) {
+                const d = new Date(s);
+                if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            }
+            const parts = s.split(':');
+            if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padEnd(2, '0').slice(0, 2)}`;
+            return s;
+        };
+
+        const getTodayString = () => {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const isDatePassed = (dateStr) => {
+            const today = getTodayString();
+            return dateStr < today;
+        };
+
+        // --- UI Components ---
+        const Card = ({ children, className = "" }) => (
+            <div className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 transition-colors ${className}`}>{children}</div>
+        );
+
+        const Button = ({ children, onClick, variant = "primary", className = "", disabled = false, type = "button" }) => {
+            const variants = {
+                primary: "bg-blue-600 text-white hover:bg-blue-700",
+                secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600",
+                danger: "bg-red-500 text-white hover:bg-red-600",
+                success: "bg-emerald-500 text-white hover:bg-emerald-600",
+                outline: "border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+            };
+            return (
+                <button type={type} disabled={disabled} onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${variants[variant]} ${className}`}>{children}</button>
+            );
+        };
+
+        // --- Main App ---
+        function App() {
+            const [userData, setUserData] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [refreshing, setRefreshing] = useState(false);
+            const [activeTab, setActiveTab] = useState('main');
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState(null);
+            const [connError, setConnError] = useState(null);
+            const [dbData, setDbData] = useState([]);
+            
+            // Auto-detect system preference for dark mode
+            const [isDarkMode, setIsDarkMode] = useState(() => 
+                window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+            );
+
+            // Listen for system theme changes
+            useEffect(() => {
+                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                const handleChange = (e) => setIsDarkMode(e.matches);
+                
+                // Compatibility for older browsers
+                if (mediaQuery.addEventListener) {
+                    mediaQuery.addEventListener('change', handleChange);
+                } else {
+                    mediaQuery.addListener(handleChange);
+                }
+                
+                return () => {
+                    if (mediaQuery.removeEventListener) {
+                        mediaQuery.removeEventListener('change', handleChange);
+                    } else {
+                        mediaQuery.removeListener(handleChange);
+                    }
+                };
+            }, []);
+
+            // Toggle Dark Mode manually
+            const toggleDarkMode = () => {
+                setIsDarkMode(!isDarkMode);
+            };
+
+            // Apply Dark Mode Class to HTML tag
+            useEffect(() => {
+                if (isDarkMode) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }, [isDarkMode]);
+
+            const fetchData = useCallback(async () => {
+                if (!SCRIPT_URL) { setLoading(false); return; }
+                setRefreshing(true);
+                try {
+                    const response = await fetch(SCRIPT_URL);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    if (Array.isArray(data)) {
+                        setDbData(data);
+                        setError(null);
+                        setConnError(null);
+                        if (userData && userData.id) {
+                            const freshUser = data.find(item => (item.type === 'user' || item.type === 'teacher') && String(item.id) === String(userData.id));
+                            if (freshUser) setUserData(freshUser);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Fetch Error:", err);
+                    setConnError(err.message);
+                } finally {
+                    setLoading(false);
+                    setRefreshing(false);
+                }
+            }, [userData]);
+
+            useEffect(() => {
+                fetchData();
+                const interval = setInterval(fetchData, 5000); // 10s interval
+                return () => clearInterval(interval);
+            }, [fetchData]);
+
+            const allStudents = useMemo(() => dbData.filter(i => (i.type === 'user' || i.type === 'teacher') && i.role === 'student'), [dbData]);
+            const appointments = useMemo(() => dbData.filter(i => i.type === 'appointment').map(a => ({ ...a, date: normalizeDate(a.date), time: normalizeTime(a.time) })).filter(a => a.date !== null), [dbData]);
+            const availability = useMemo(() => dbData.filter(i => i.type === 'availability').map(avail => ({ ...avail, date: normalizeDate(avail.date || avail.day), time: normalizeTime(avail.time) })).filter(avail => avail.date !== null), [dbData]);
+
+            const callApi = async (payload) => {
+                setRefreshing(true);
+                setError(null);
+                try {
+                    await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+                    setTimeout(fetchData, 2000);
+                } catch (err) {
+                    setError("הסנכרון נכשל. ייתכן והשינויים לא נשמרו.");
+                } finally {
+                    setRefreshing(false);
+                }
+            };
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                setError(null);
+                const isHardcodedTeacher = (email === 'admin@school.com' && password === '255656!.'); 
+                const foundUser = dbData.find(u => String(u.email).toLowerCase() === email.toLowerCase() && String(u.password) === String(password));
+                if (isHardcodedTeacher) setUserData({ id: 'teacher-admin', email, role: 'teacher', name: 'אדמין ראשי', maxLessons: 99 });
+                else if (foundUser) setUserData(foundUser);
+                else setError("פרטי התחברות שגויים. אנא בדוק את האימייל והסיסמה.");
+            };
+
+            const logout = () => {
+                setUserData(null);
+                setEmail('');
+                setPassword('');
+                setActiveTab('main');
+            };
+
+            if (connError && !userData) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-6 dark:bg-slate-900 transition-colors">
+                        <Card className="max-w-md w-full border-red-200 text-center space-y-4">
+                            <div className="p-3 bg-red-100 text-red-600 rounded-full w-fit mx-auto"><Icon name="alert" size={32}/></div>
+                            <h2 className="text-xl font-bold dark:text-white">החיבור נכשל</h2>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">{connError.includes('404') ? "שגיאה 404: כתובת ה-Script לא נמצאה." : "בעיה בתקשורת עם בסיס הנתונים."}</p>
+                            <Button onClick={fetchData} variant="primary" className="w-full">נסה שוב</Button>
+                        </Card>
+                    </div>
+                );
+            }
+
+            if (loading && dbData.length === 0) return (
+                <div className="flex flex-col items-center justify-center h-screen gap-4 dark:bg-slate-900 dark:text-white transition-colors">
+                    <Icon name="refresh" className="animate-spin text-blue-500" size={32}/>
+                    <span>מתחבר למסד הנתונים...</span>
+                </div>
+            );
+
+            if (!userData) {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center p-6 dark:bg-slate-900 transition-colors">
+                        <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors">
+                            <div className="bg-blue-600 p-8 text-center relative">
+                                <div className="absolute top-4 left-4">
+                                    <button onClick={toggleDarkMode} className="p-2 text-white/50 hover:text-white transition-colors">
+                                        <Icon name={isDarkMode ? "sun" : "moon"} size={20}/>
+                                    </button>
+                                </div>
+                                <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="calendar" size={32} className="text-white"/></div>
+                                <h1 className="text-2xl font-bold text-white">מירו לימוד נהיגה</h1>
+                                <p className="text-blue-100 mt-1 text-sm">By NexAria Solutions</p>
+                            </div>
+                            <form onSubmit={handleLogin} className="p-8 space-y-4">
+                                {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100 font-medium text-right">{error}</div>}
+                                <div className="text-right">
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">כתובת אימייל</label>
+                                    <input type="email" required className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-right transition-colors" value={email} onChange={e => setEmail(e.target.value)} />
+                                </div>
+                                <div className="text-right">
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">סיסמה</label>
+                                    <input type="password" required className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-right transition-colors" value={password} onChange={e => setPassword(e.target.value)} />
+                                </div>
+                                <Button type="submit" className="w-full py-3 text-lg mt-2" disabled={refreshing}>{refreshing ? "מאמת..." : "התחברות"}</Button>
+                            </form>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen flex flex-col dark:bg-slate-900 transition-colors" dir="rtl">
+                    <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30 px-4 h-16 flex items-center justify-between transition-colors">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-blue-600 p-1.5 rounded-lg"><Icon name="calendar" className="text-white" size={20}/></div>
+                            <span className="font-bold text-slate-800 dark:text-white">בית ספר לנהיגה</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex flex-col items-start">
+                                <span className="text-sm font-semibold dark:text-white">{userData.name}</span>
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">{userData.role === 'teacher' ? 'מורה' : 'תלמיד'}</span>
+                            </div>
+                            <div className="flex items-center gap-1 border-r border-slate-200 dark:border-slate-700 pr-4 mr-2 h-8">
+                                <button onClick={toggleDarkMode} className="p-2 text-slate-400 hover:text-blue-500 dark:hover:text-yellow-400 transition-colors" title={isDarkMode ? "מצב יום" : "מצב לילה"}>
+                                    <Icon name={isDarkMode ? "sun" : "moon"} size={20}/>
+                                </button>
+                                <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="התנתקות">
+                                    <Icon name="logout" size={20}/></button>
+                            </div>
+                        </div>
+                    </header>
+                    <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 overflow-x-auto px-4 flex gap-8 whitespace-nowrap transition-colors">
+                        {userData.role === 'teacher' ? (
+                            <Fragment>
+                                <Tab active={activeTab === 'main'} onClick={() => setActiveTab('main')} icon="calendar" label="ניהול שיעורים" />
+                                <Tab active={activeTab === 'availability'} onClick={() => setActiveTab('availability')} icon="clock" label="זמינות" />
+                                <Tab active={activeTab === 'students'} onClick={() => setActiveTab('students')} icon="users" label="תלמידים" />
+                            </Fragment>
+                        ) : (
+                            <Fragment>
+                                <Tab active={activeTab === 'main'} onClick={() => setActiveTab('main')} icon="plus" label="הזמנת שיעור" />
+                                <Tab active={activeTab === 'notifications'} onClick={() => setActiveTab('notifications')} icon="bell" label="התראות" />
+                                <Tab active={activeTab === 'my-lessons'} onClick={() => setActiveTab('my-lessons')} icon="check" label="השיעורים שלי" />
+                            </Fragment>
+                        )}
+                    </div>
+                    <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 overflow-x-hidden">
+                        {userData.role === 'teacher' ? (
+                            <TeacherView tab={activeTab} appointments={appointments} students={allStudents} availability={availability} callApi={callApi} />
+                        ) : (
+                            <StudentView tab={activeTab} userData={userData} appointments={appointments} availability={availability} callApi={callApi} />
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        function Tab({ active, onClick, icon, label }) {
+            return (
+                <button onClick={onClick} className={`flex items-center gap-2 py-4 border-b-2 font-medium text-sm transition-all ${active ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"}`}>
+                    <Icon name={icon} size={18}/>{label}
+                </button>
+            );
+        }
+
+        function TeacherView({ tab, appointments, students, availability, callApi }) {
+            const [selectedAppt, setSelectedAppt] = useState(null);
+            const [showManual, setShowManual] = useState(false);
+            const [manual, setManual] = useState({ studentId: '', date: '', time: '08:00' });
+
+            const handleManualAdd = () => {
+                const s = students.find(x => String(x.id) === String(manual.studentId));
+                if (!s || !manual.date) return;
+                callApi({ action: 'ADD_ROW', data: { id: Date.now(), type: 'appointment', studentId: s.id, studentName: s.name, date: manual.date, time: manual.time, status: 'approved', createdAt: Date.now() } });
+                setShowManual(false); setManual({ studentId: '', date: '', time: '08:00' });
+            };
+
+            const sortedAppointments = useMemo(() => {
+                const today = getTodayString();
+                return [...appointments].sort((a, b) => {
+                    if (a.status === 'pending' && b.status !== 'pending') return -1;
+                    if (a.status !== 'pending' && b.status === 'pending') return 1;
+                    if (a.status === 'pending' && b.status === 'pending') {
+                        return (b.createdAt || 0) - (a.createdAt || 0);
+                    }
+                    const aPassed = a.date < today;
+                    const bPassed = b.date < today;
+                    if (!aPassed && bPassed) return -1;
+                    if (aPassed && !bPassed) return 1;
+                    if (!aPassed) {
+                        return a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
+                    } else {
+                        return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
+                    }
+                });
+            }, [appointments]);
+
+            if (tab === 'main') return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center"><h2 className="text-xl font-bold dark:text-white">ניהול תורים</h2><Button onClick={() => setShowManual(true)} className="text-sm"><Icon name="plus" className="inline ml-1" size={14}/> הזמנה ידנית</Button></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {sortedAppointments.length === 0 && <p className="italic text-right dark:text-slate-400">אין שיעורים רשומים.</p>}
+                        {sortedAppointments.map(appt => {
+                            const isPassed = isDatePassed(appt.date);
+                            const borderClass = appt.status === 'approved' 
+                                ? (isPassed ? 'border-t-4 border-t-[#a3b1a8]' : 'border-t-4 border-t-emerald-500')
+                                : '';
+
+                            return (
+                                <Card key={appt.id} className={`${appt.status === 'pending' ? 'ring-2 ring-blue-500 ring-offset-2' : ''} ${borderClass}`}>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="text-right">
+                                            <div className="flex flex-wrap gap-1 items-center mb-1">
+                                                <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${appt.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : appt.status === 'denied' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    {appt.status === 'approved' ? 'מאושר' : appt.status === 'denied' ? 'בוטל' : 'ממתין'}
+                                                </span>
+                                                {isPassed && appt.status === 'approved' && (
+                                                    <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600">
+                                                        בוצע
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <h3 className="font-bold mt-2 dark:text-white">{appt.studentName}</h3>
+                                        </div>
+                                        <div className="text-left"><p className="text-sm text-slate-600 dark:text-slate-400">{new Date(appt.date).toLocaleDateString('he-IL')}</p><p className="text-lg font-bold dark:text-slate-100">{appt.time}</p></div>
+                                    </div>
+                                    <div className="flex gap-2 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                        {appt.status === 'pending' ? (
+                                            <Fragment>
+                                                <Button variant="success" className="flex-1" onClick={() => callApi({ action:'UPDATE_ROW', id: appt.id, updates: {status:'approved', updatedAt: Date.now()}})}>אשר</Button>
+                                                <Button variant="danger" className="flex-1" onClick={() => callApi({ action:'UPDATE_ROW', id: appt.id, updates: {status:'denied', deniedAt: Date.now(), updatedAt: Date.now()}})}>דחה</Button>
+                                            </Fragment>
+                                        ) : appt.status === 'approved' ? (
+                                            !isPassed && <Button variant="outline" className="flex-1 text-xs" onClick={() => setSelectedAppt(appt)}>ערוך / בטל</Button>
+                                        ) : (
+                                            !isPassed && <Button variant="danger" className="flex-1 text-xs" onClick={() => callApi({ action:'DELETE_ROW', id: appt.id})}><Icon name="trash" size={12} className="inline ml-1"/> מחק רשומה</Button>
+                                        )}
+                                    </div>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                    {selectedAppt && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                            <Card className="w-full max-w-md space-y-4 text-right">
+                                <h3 className="text-lg font-bold dark:text-white">עריכת שיעור</h3>
+                                <div className="space-y-3">
+                                    <div><label className="block text-sm mb-1 dark:text-slate-300">תאריך חדש</label><input type="date" id="edit-date" className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" defaultValue={selectedAppt.date}/></div>
+                                    <div><label className="block text-sm mb-1 dark:text-slate-300">שעה חדשה</label><select id="edit-time" className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" defaultValue={selectedAppt.time}>{Array.from({length:12},(_,i)=>`${(i+8).toString().padStart(2,'0')}:00`).map(t=><option key={t}>{t}</option>)}</select></div>
+                                </div>
+                                <div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={()=>setSelectedAppt(null)}>ביטול</Button><Button variant="danger" className="flex-1" onClick={()=>{callApi({ action:'UPDATE_ROW', id: selectedAppt.id, updates: {status:'denied', deniedAt: Date.now(), updatedAt: Date.now()}}); setSelectedAppt(null);}}>בטל שיעור</Button><Button variant="primary" className="flex-1" onClick={()=>{const d=document.getElementById('edit-date').value; const t=document.getElementById('edit-time').value; callApi({ action:'UPDATE_ROW', id: selectedAppt.id, updates: {date:d, time:t, status:'pending', updatedAt: Date.now()}}); setSelectedAppt(null);}}>שמור</Button></div>
+                            </Card>
+                        </div>
+                    )}
+                    {showManual && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                            <Card className="w-full max-w-md space-y-4 text-right">
+                                <h3 className="text-lg font-bold dark:text-white">הזמנה ידנית</h3>
+                                <div className="space-y-3">
+                                    <div><label className="block text-sm mb-1 dark:text-slate-300">בחר תלמיד</label><select className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={manual.studentId} onChange={e=>setManual({...manual, studentId:e.target.value})}><option value="">בחר...</option>{students.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                                    <div><label className="block text-sm mb-1 dark:text-slate-300">תאריך</label><input type="date" className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={manual.date} onChange={e=>setManual({...manual, date:e.target.value})}/></div>
+                                    <div><label className="block text-sm mb-1 dark:text-slate-300">שעה</label><select className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={manual.time} onChange={e=>setManual({...manual, time:e.target.value})}>{Array.from({length:12},(_,i)=>`${(i+8).toString().padStart(2,'0')}:00`).map(t=><option key={t}>{t}</option>)}</select></div>
+                                </div>
+                                <div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={()=>setShowManual(false)}>ביטול</Button><Button variant="primary" className="flex-1" onClick={handleManualAdd}>קבע שיעור</Button></div>
+                            </Card>
+                        </div>
+                    )}
+                </div>
+            );
+            if (tab === 'availability') return <TeacherAvailability availability={availability} callApi={callApi} />;
+            if (tab === 'students') return <TeacherStudentManagement students={students} callApi={callApi} />;
+            return null;
+        }
+
+        function TeacherAvailability({ availability, callApi }) {
+            const [newDay, setNewDay] = useState('');
+            const [fromT, setFromT] = useState('08:00');
+            const [toT, setToT] = useState('12:00');
+            const addAvail = async () => {
+                if (!newDay) return;
+                const start = parseInt(fromT.split(':')[0]);
+                const end = parseInt(toT.split(':')[0]);
+                if (end <= start) return;
+                for (let h = start; h < end; h++) {
+                    await callApi({ action: 'ADD_ROW', data: { id: Date.now()+h, type: 'availability', date: newDay, time: `${h.toString().padStart(2, '0')}:00` } });
+                }
+            };
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-right dark:text-white">זמינות</h2>
+                    <Card className="flex flex-wrap items-end gap-4 text-right">
+                        <div className="flex-1 min-w-[150px]"><label className="block text-sm mb-1 dark:text-slate-300">תאריך</label><input type="date" className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newDay} onChange={e => setNewDay(e.target.value)} /></div>
+                        <div className="flex-1 min-w-[100px]"><label className="block text-sm mb-1 dark:text-slate-300">מ-</label><select className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={fromT} onChange={e => setFromT(e.target.value)}>{Array.from({length:12},(_,i)=>`${(i+8).toString().padStart(2,'0')}:00`).map(t=><option key={t}>{t}</option>)}</select></div>
+                        <div className="flex-1 min-w-[100px]"><label className="block text-sm mb-1 dark:text-slate-300">עד</label><select className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={toT} onChange={e => setToT(e.target.value)}>{Array.from({length:13},(_,i)=>`${(i+8).toString().padStart(2,'0')}:00`).map(t=><option key={t}>{t}</option>)}</select></div>
+                        <Button onClick={addAvail}><Icon name="plus" className="inline ml-1" size={14}/> הוסף</Button>
+                    </Card>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {availability.sort((a,b) => new Date(a.date)-new Date(b.date)).map(slot => (
+                            <div key={slot.id} className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex justify-between items-center transition-colors"><div className="text-right"><p className="text-sm font-bold dark:text-slate-100">{new Date(slot.date).toLocaleDateString('he-IL')}</p><p className="text-xs dark:text-slate-400">{slot.time}</p></div><button onClick={() => callApi({action:'DELETE_ROW', id:slot.id})} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="trash" size={16}/></button></div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function TeacherStudentManagement({ students, callApi }) {
+            const [show, setShow] = useState(false);
+            const [f, setF] = useState({ name:'', email:'', password:'', maxLessons: 18 });
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center"><h2 className="text-xl font-bold dark:text-white">תלמידים</h2><Button onClick={()=>setShow(true)}><Icon name="plus" size={14}/> תלמיד חדש</Button></div>
+                    <div className="overflow-x-auto bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-slate-50 dark:bg-slate-700/50 border-b dark:border-slate-700"><tr className="dark:text-slate-300"><th className="p-3">שם</th><th className="p-3">אימייל</th><th className="p-3">מכסה</th><th className="p-3">פעולות</th></tr></thead>
+                            <tbody className="divide-y dark:divide-slate-700">{students.map(s=>(<tr key={s.id} className="dark:text-slate-100"><td className="p-3">{s.name}</td><td className="p-3 text-slate-500 dark:text-slate-400">{s.email}</td><td className="p-3"><input type="number" className="w-16 border rounded px-1 text-center dark:bg-slate-700 dark:border-slate-600 dark:text-white" defaultValue={s.maxLessons} onBlur={e=>callApi({action:'UPDATE_ROW', id:s.id, updates:{maxLessons:parseInt(e.target.value)}})}/></td><td className="p-3"><button onClick={()=>callApi({action:'DELETE_ROW', id:s.id})} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="trash" size={16}/></button></td></tr>))}</tbody>
+                        </table>
+                    </div>
+                    {show && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                            <Card className="w-full max-w-md space-y-4 text-right">
+                                <h3 className="text-lg font-bold dark:text-white">יצירת תלמיד</h3>
+                                <div className="space-y-3">
+                                    <input className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="שם מלא" onChange={e=>setF({...f, name:e.target.value})}/>
+                                    <input className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="אימייל" onChange={e=>setF({...f, email:e.target.value})}/>
+                                    <input className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="סיסמה" onChange={e=>setF({...f, password:e.target.value})}/>
+                                    <div className="text-xs font-bold text-slate-500 dark:text-slate-400">מכסה כללית</div>
+                                    <input type="number" className="w-full border p-2 rounded text-right dark:bg-slate-700 dark:border-slate-600 dark:text-white" defaultValue="18" onChange={e=>setF({...f, maxLessons:parseInt(e.target.value)})}/>
+                                </div>
+                                <div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={()=>setShow(false)}>ביטול</Button><Button variant="primary" className="flex-1" onClick={()=>{callApi({action:'ADD_ROW', data:{...f, id:Date.now(), type:'user', role:'student', createdAt:Date.now()}}); setShow(false);}}>צור חשבון</Button></div>
+                            </Card>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function StudentView({ tab, userData, appointments, availability, callApi }) {
+            const [selectedDate, setSelectedDate] = useState(null);
+            const [pending, setPending] = useState(null);
+            const [errorMessage, setErrorMessage] = useState(null);
+            
+            const studentAppts = useMemo(() => appointments.filter(a => String(a.studentId) === String(userData.id)), [appointments, userData.id]);
+            const activeCount = useMemo(() => {
+                const now = getTodayString();
+                return studentAppts.filter(a => (a.status === 'pending' || a.status === 'approved') && a.date >= now).length;
+            }, [studentAppts]);
+            
+            const totalCount = useMemo(() => studentAppts.filter(a => a.status !== 'denied').length, [studentAppts]);
+            const limit = parseInt(userData.maxLessons) || 18;
+
+            if (tab === 'main') {
+                const todayStr = getTodayString();
+                const dates = [...new Set(availability.map(a => a.date))]
+                    .filter(d => d >= todayStr)
+                    .sort();
+
+                return (
+                    <div className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-right">
+                            <h2 className="text-xl font-bold dark:text-white">הזמן שיעור נהיגה</h2>
+                            <div className="flex flex-wrap gap-2">
+                                <div className="bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800 flex items-center gap-2 text-sm"><span className="text-blue-800 dark:text-blue-300">פעילים:</span><span className="font-bold dark:text-blue-200">{activeCount} / 3</span></div>
+                                <div className="bg-slate-50 dark:bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center gap-2 text-sm"><span className="text-slate-600 dark:text-slate-300">סה"כ:</span><span className="font-bold dark:text-slate-200">{totalCount} / {limit}</span></div>
+                            </div>
+                        </div>
+
+                        {errorMessage && (
+                            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl flex justify-between items-center animate-in fade-in slide-in-from-top-2 duration-300">
+                                <span>{errorMessage}</span>
+                                <button onClick={() => setErrorMessage(null)} className="p-1 hover:bg-red-100 dark:hover:bg-red-800/50 rounded-full transition-colors">
+                                    <Icon name="x" size={16} />
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Card className="h-fit space-y-4">
+                                <h3 className="font-bold text-right flex items-center gap-2 dark:text-white"><Icon name="calendar" size={16}/> 1. בחר תאריך</h3>
+                                <div className="space-y-2">
+                                    {dates.map(date => (<button key={date} onClick={() => { setSelectedDate(date); setErrorMessage(null); }} className={`w-full text-right px-4 py-3 rounded-lg border transition-all ${selectedDate === date ? "border-blue-600 bg-blue-50 text-blue-700 font-bold dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-500" : "border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 dark:text-slate-300"}`}>{new Date(date).toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</button>))}
+                                    {dates.length === 0 && <p className="text-slate-400 text-sm text-right">אין תאריכים פנויים.</p>}
+                                </div>
+                            </Card>
+                            <Card className="h-fit space-y-4">
+                                <h3 className="font-bold text-right flex items-center gap-2 dark:text-white"><Icon name="clock" size={16}/> 2. שעות פנויות</h3>
+                                {!selectedDate ? <p className="text-slate-400 text-sm text-right">בחר תאריך קודם.</p> : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {availability.filter(a => a.date === selectedDate).map(slot => {
+                                            const taken = appointments.some(x => x.date === slot.date && x.time === slot.time && x.status !== 'denied');
+                                            return (<button key={slot.id} disabled={taken} onClick={() => {
+                                                if (activeCount >= 3) {
+                                                    setErrorMessage("לא ניתן לקבוע יותר מ-3 שיעורים פעילים בו-זמנית.");
+                                                } else {
+                                                    setErrorMessage(null);
+                                                    setPending(slot);
+                                                }
+                                            }} className={`p-3 rounded-lg border text-center transition-all ${taken ? "bg-slate-50 dark:bg-slate-700 text-slate-300 dark:text-slate-500 border-slate-100 dark:border-slate-700 cursor-not-allowed" : "border-slate-200 dark:border-slate-700 dark:text-slate-300 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 font-medium"}`}>{slot.time} {taken && <span className="block text-[10px]">תפוס</span>}</button>);
+                                        })}
+                                    </div>
+                                )}
+                            </Card>
+                        </div>
+                        {pending && (
+                            <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+                                <Card className="max-w-xs w-full text-center space-y-6 shadow-2xl scale-105 transition-transform">
+                                    <div className="bg-blue-50 dark:bg-blue-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto"><Icon name="calendar" size={32} className="text-blue-600 dark:text-blue-400"/></div>
+                                    <h3 className="text-xl font-bold dark:text-white">לאשר את ההזמנה?</h3>
+                                    <p className="text-slate-600 dark:text-slate-300">שיעור ב-{new Date(pending.date).toLocaleDateString('he-IL')}<br/>בשעה <span className="font-bold text-blue-600 dark:text-blue-400 text-lg">{pending.time}</span></p>
+                                    <div className="flex gap-2 pt-2"><Button variant="outline" className="flex-1" onClick={()=>setPending(null)}>ביטול</Button><Button variant="primary" className="flex-1" onClick={()=>{callApi({action:'ADD_ROW', data:{id:Date.now(), type:'appointment', studentId:userData.id, studentName:userData.name, date:pending.date, time:pending.time, status:'pending', createdAt:Date.now()}}); setPending(null);}}>אשר בחירה</Button></div>
+                                </Card>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+            if (tab === 'notifications') return (
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-right dark:text-white">התראות</h2>
+                    <div className="space-y-3 text-right">
+                        {studentAppts.filter(a => a.status === 'denied' || (a.status === 'approved' && a.updatedAt > a.createdAt)).map(n => (
+                            <Card key={n.id} className={`border-r-4 ${n.status === 'denied' ? 'border-r-red-500' : 'border-r-blue-500'} space-y-1`}>
+                                <p className="font-bold dark:text-white">{n.status === 'denied' ? 'השיעור בוטל' : 'השיעור עודכן'}</p>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">השיעור ב-{new Date(n.date).toLocaleDateString('he-IL')} בשעה {n.time} {n.status === 'denied' ? 'נדחה או בוטל על ידי המורה' : 'עודכן'}.</p>
+                            </Card>
+                        ))}
+                        {studentAppts.filter(a => a.status === 'denied' || (a.status === 'approved' && a.updatedAt > a.createdAt)).length === 0 && <p className="text-slate-400 text-sm dark:text-slate-500">אין התראות חדשות.</p>}
+                    </div>
+                </div>
+            );
+            if (tab === 'my-lessons') return (
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-right dark:text-white">השיעורים שלי</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {studentAppts.filter(a => a.status === 'approved').map(appt => {
+                            const isPassed = isDatePassed(appt.date);
+                            const borderClass = isPassed ? 'border-t-4 border-t-[#a3b1a8]' : 'border-t-4 border-t-emerald-500';
+
+                            return (
+                                <Card key={appt.id} className={`${borderClass} text-right space-y-2`}>
+                                    <div className="flex justify-between items-start">
+                                        <p className="text-lg font-bold dark:text-white">{new Date(appt.date).toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                        {isPassed && (
+                                            <span className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600">בוצע</span>
+                                        )}
+                                    </div>
+                                    <p className="text-blue-600 dark:text-blue-400 font-bold text-xl">{appt.time}</p>
+                                </Card>
+                            );
+                        })}
+                        {studentAppts.filter(a => a.status === 'approved').length === 0 && <p className="text-slate-400 text-sm dark:text-slate-500 col-span-full">אין שיעורים מאושרים להצגה.</p>}
+                    </div>
+                </div>
+            );
+            return null;
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
