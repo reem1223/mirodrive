@@ -45,7 +45,6 @@
         const { useState, useEffect, useMemo, useCallback, Fragment } = React;
 
         // --- CONFIGURATION ---
-        // IMPORTANT: Replace this URL with your actual deployed Google Apps Script URL
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzqm1e_GEqZ4qKuSqYPd7j2PnjkFk5LT-zO44zsoSP5xmacG04QxBQRDzj0C72BSZss/exec";
 
         // --- SVGs for Icons ---
@@ -95,12 +94,24 @@
         const normalizeTime = (t) => {
             if (!t || String(t).trim() === "") return "";
             const s = String(t).trim();
+            
+            // Fix for Safari 12:59 bug: 
+            // When parsing ISO dates or floating points from Sheets, add 30 seconds 
+            // to ensure rounding to the correct hour/minute.
             if (s.includes('T') || (s.includes('-') && s.length > 10)) {
                 const d = new Date(s);
-                if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                if (!isNaN(d.getTime())) {
+                    const roundedDate = new Date(d.getTime() + 30000); 
+                    return `${String(roundedDate.getHours()).padStart(2, '0')}:${String(roundedDate.getMinutes()).padStart(2, '0')}`;
+                }
             }
+            
             const parts = s.split(':');
-            if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padEnd(2, '0').slice(0, 2)}`;
+            if (parts.length >= 2) {
+                const h = parts[0].padStart(2, '0');
+                const m = parts[1].padEnd(2, '0').slice(0, 2);
+                return `${h}:${m}`;
+            }
             return s;
         };
 
@@ -355,15 +366,25 @@
             const sortedAppointments = useMemo(() => {
                 const today = getTodayString();
                 return [...appointments].sort((a, b) => {
+                    // 1. Pending always first
                     if (a.status === 'pending' && b.status !== 'pending') return -1;
                     if (a.status !== 'pending' && b.status === 'pending') return 1;
-                    if (a.status === 'pending' && b.status === 'pending') return (b.createdAt || 0) - (a.createdAt || 0);
+                    
+                    if (a.status === 'pending' && b.status === 'pending') {
+                        return (b.createdAt || 0) - (a.createdAt || 0);
+                    }
+
                     const aPassed = a.date < today;
                     const bPassed = b.date < today;
+
                     if (!aPassed && bPassed) return -1;
                     if (aPassed && !bPassed) return 1;
-                    if (!aPassed) return a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
-                    else return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
+
+                    if (!aPassed) {
+                        return a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
+                    } else {
+                        return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
+                    }
                 });
             }, [appointments]);
 
@@ -375,7 +396,7 @@
                         {sortedAppointments.map(appt => {
                             const isPassed = isDatePassed(appt.date);
                             
-                            // Fix: Explicitly defining dark mode top border colors to override dark:border-slate-700
+                            // Fix: Explicitly defining dark mode top border colors
                             let borderClass = '';
                             if (appt.status === 'approved') {
                                 borderClass = isPassed 
@@ -385,6 +406,7 @@
                                 borderClass = 'border-t-4 border-t-red-500 dark:border-t-red-500';
                             }
                             
+                            // Teacher can see student metrics
                             const studentObj = students.find(s => String(s.id) === String(appt.studentId));
                             const studentMax = studentObj ? (parseInt(studentObj.maxLessons) || 18) : 18;
                             const studentTotal = appointments.filter(a => String(a.studentId) === String(appt.studentId) && a.status !== 'denied').length;
@@ -498,7 +520,7 @@
             const [f, setF] = useState({ name:'', email:'', password:'', maxLessons: 18 });
             return (
                 <div className="space-y-6">
-                    <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-right dark:text-white">תלמידים</h2><Button onClick={()=>setShow(true)}><Icon name="plus" size={14}/> תלמיד חדש</Button></div>
+                    <div className="flex justify-between items-center"><h2 className="text-xl font-bold dark:text-white">תלמידים</h2><Button onClick={()=>setShow(true)}><Icon name="plus" size={14}/> תלמיד חדש</Button></div>
                     <div className="overflow-x-auto bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors">
                         <table className="w-full text-right text-sm">
                             <thead className="bg-slate-50 dark:bg-slate-700/50 border-b dark:border-slate-700"><tr className="dark:text-slate-300"><th className="p-3">שם</th><th className="p-3">אימייל</th><th className="p-3">מכסה</th><th className="p-3">פעולות</th></tr></thead>
@@ -592,7 +614,9 @@
                                     <div className="bg-blue-50 dark:bg-blue-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto"><Icon name="calendar" size={32} className="text-blue-600 dark:text-blue-400"/></div>
                                     <h3 className="text-xl font-bold dark:text-white">לאשר את ההזמנה?</h3>
                                     {totalCount >= limit && (
-                                        <p className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 p-2 rounded text-xs font-bold">שים לב: חרגת ממכסת השיעורים. הבקשה תועבר לאישור ידני של המורה.</p>
+                                        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded text-xs font-bold leading-tight">
+                                            שים לב: חרגת ממכסת השיעורים הכוללת! הבקשה תועבר לאישור מיוחד של המורה.
+                                        </div>
                                     )}
                                     <p className="text-slate-600 dark:text-slate-300">שיעור ב-{new Date(pending.date).toLocaleDateString('he-IL')}<br/>בשעה <span className="font-bold text-blue-600 dark:text-blue-400 text-lg">{pending.time}</span></p>
                                     <div className="flex gap-2 pt-2"><Button variant="outline" className="flex-1" onClick={()=>setPending(null)}>ביטול</Button><Button variant="primary" className="flex-1" onClick={()=>{callApi({action:'ADD_ROW', data:{id:Date.now(), type:'appointment', studentId:userData.id, studentName:userData.name, date:pending.date, time:pending.time, status:'pending', createdAt:Date.now()}}); setPending(null);}}>אשר בחירה</Button></div>
@@ -607,11 +631,7 @@
                     <h2 className="text-xl font-bold text-right dark:text-white">התראות</h2>
                     <div className="space-y-3 text-right">
                         {studentAppts.filter(a => a.status === 'denied' || (a.status === 'approved' && a.updatedAt > a.createdAt)).map(n => {
-                            // Fix: Ensure right border colors work in dark mode
-                            const colorClass = n.status === 'denied' 
-                                ? 'border-r-red-500 dark:border-r-red-500' 
-                                : 'border-r-blue-500 dark:border-r-blue-500';
-                            
+                            const colorClass = n.status === 'denied' ? 'border-r-red-500 dark:border-r-red-500' : 'border-r-blue-500 dark:border-r-blue-500';
                             return (
                                 <Card key={n.id} className={`border-r-4 ${colorClass} space-y-1`}>
                                     <p className="font-bold dark:text-white">{n.status === 'denied' ? 'השיעור בוטל' : 'השיעור עודכן'}</p>
@@ -629,12 +649,7 @@
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {studentAppts.filter(a => a.status === 'approved').map(appt => {
                             const isPassed = isDatePassed(appt.date);
-                            
-                            // Fix: Explicitly define dark mode top border colors
-                            const borderClass = isPassed 
-                                ? 'border-t-4 border-t-[#a3b1a8] dark:border-t-[#a3b1a8]' 
-                                : 'border-t-4 border-t-emerald-500 dark:border-t-emerald-500';
-
+                            const borderClass = isPassed ? 'border-t-4 border-t-[#a3b1a8] dark:border-t-[#a3b1a8]' : 'border-t-4 border-t-emerald-500 dark:border-t-emerald-500';
                             return (
                                 <Card key={appt.id} className={`${borderClass} text-right space-y-2`}>
                                     <div className="flex justify-between items-start">
